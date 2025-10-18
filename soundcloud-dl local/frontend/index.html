@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoundCloud Downloader</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 0.9em;
+        }
+
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 25px;
+            color: #856404;
+            font-size: 0.85em;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status.loading {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .download-link {
+            display: inline-block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+
+        .download-link:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>SoundCloud Downloader</h1>
+        <p class="subtitle">SoundCloudの楽曲ダウンローダー</p>
+        
+        <div class="warning">
+            <strong>注意:</strong> ダウンロードが許可されている楽曲のみを対象としてください。著作権を尊重しましょう。
+        </div>
+
+        <div class="input-group">
+            <label for="url">SoundCloud URL</label>
+            <input 
+                type="text" 
+                id="url" 
+                placeholder="https://soundcloud.com/artist/track"
+                autocomplete="off"
+            >
+        </div>
+
+        <button class="btn" id="downloadBtn" onclick="downloadTrack()">
+            ダウンロード
+        </button>
+
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        // ここにバックエンドのURLを設定（Renderにデプロイ後に更新）
+        const API_URL = 'http://127.0.0.1:8000';
+
+        async function downloadTrack() {
+            const urlInput = document.getElementById('url');
+            const statusDiv = document.getElementById('status');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                showStatus('URLを入力してください', 'error');
+                return;
+            }
+
+            if (!url.includes('soundcloud.com')) {
+                showStatus('有効なSoundCloud URLを入力してください', 'error');
+                return;
+            }
+
+            downloadBtn.disabled = true;
+            showStatus('<div class="spinner"></div>処理中...', 'loading');
+
+            try {
+                const response = await fetch(`${API_URL}/download`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+                
+                // デバッグ用：レスポンスをコンソールに出力
+                console.log('Response status:', response.status);
+                console.log('Response data:', data);
+
+                if (response.ok) {
+                    const filename = data.safe_filename || 'download.mp3';
+                    const downloadUrl = `${API_URL}${data.download_url}?download_name=${encodeURIComponent(filename)}`;
+                    
+                    showStatus(
+                        `✅ ダウンロード準備完了！<br><a href="${downloadUrl}" class="download-link">📥 ${data.title}</a>`,
+                        'success'
+                    );
+                } else {
+                    // エラーメッセージを取得
+                    // FastAPIは通常 { detail: "message" } の形式で返す
+                    let errorMessage = '不明なエラーが発生しました';
+                    
+                    if (typeof data === 'string') {
+                        errorMessage = data;
+                    } else if (data.detail) {
+                        errorMessage = data.detail;
+                    } else if (data.error) {
+                        errorMessage = data.error;
+                    } else if (data.message) {
+                        errorMessage = data.message;
+                    }
+                    
+                    console.log('Error message:', errorMessage);
+                    showStatus(`❌ ${errorMessage}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`❌ 接続エラー: バックエンドに接続できません`, 'error');
+                console.error(error);
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        }
+
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = `status ${type}`;
+            statusDiv.style.display = 'block';
+        }
+
+        // Enterキーでダウンロード
+        document.getElementById('url').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                downloadTrack();
+            }
+        });
+    </script>
+</body>
+</html>
