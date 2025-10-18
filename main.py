@@ -15,7 +15,7 @@ app = FastAPI()
 # CORS設定（GitHub Pagesからのアクセスを許可）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 本番環境では特定のドメインに限定することを推奨
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -29,7 +29,7 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 @app.on_event("startup")
 async def startup_cleanup():
     """10分以上前のファイルを削除"""
-    cleanup_old_files_sync(600)  # 10分 = 600秒
+    cleanup_old_files_sync(600)
 
 def cleanup_old_files_sync(max_age_seconds: int = 600):
     """指定秒数より古いファイルを削除"""
@@ -56,73 +56,49 @@ def read_root():
 @app.post("/download")
 async def download_track(request: DownloadRequest):
     try:
-        # 古いファイルをクリーンアップ（ダウンロード前に実行）
-        cleanup_old_files_sync(600)  # 10分より古いファイルを削除
-        
-        # まず情報だけを取得してファイルサイズをチェック
-        ydl_opts_info = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': False,
-        }
-        
-        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
-            info = ydl.extract_info(request.url, download=False)
-            filesize = info.get('filesize') or info.get('filesize_approx', 0)
-            title = info.get('title', 'unknown')
-            
-            # デバッグ用ログ
-            #if filesize > 0:
-                #print(f"📊 ファイルサイズ: {filesize} bytes ({filesize / (1024 * 1024):.2f} MB)")
-            #else:
-                #print("⚠️ ファイルサイズが取得できませんでした")
-            #print(f"🎵 タイトル: {title}")
-            
-            # ファイルサイズが取得できない場合はエラー
-            if filesize == 0:
-                error_msg = "ファイルサイズが取得できませんでした。この楽曲はダウンロードできない可能性があります。"
-                #print(f"❌ {error_msg}")
-                raise HTTPException(
-                    status_code=400, 
-                    detail=error_msg
-                )
-            
-            # ファイルサイズが25MB(26214400バイト)以上の場合は拒否
-            MAX_SIZE = 13 * 1024 * 1024  # 13MB
-            if filesize > MAX_SIZE:
-                size_mb = filesize / (1024 * 1024)
-                error_msg = f"ファイルサイズが大きすぎます ({size_mb:.1f}MB)。13MB以下のファイルのみダウンロード可能です。"
-                #print(f"❌ サイズ超過: {error_msg}")
-                raise HTTPException(
-                    status_code=400, 
-                    detail=error_msg
-                )
+        # 古いファイルをクリーンアップ
+        cleanup_old_files_sync(600)
         
         # 一意のファイル名を生成
         file_id = str(uuid.uuid4())
         output_template = str(DOWNLOAD_DIR / f"{file_id}.%(ext)s")
         
-        # yt-dlpの設定（MP3変換あり）
+        print(f"📥 ダウンロード開始: {request.url}")
+        
+        # yt-dlpの設定
         ydl_opts = {
             'format': 'bestaudio/best',
             'outtmpl': output_template,
-            'quiet': True,
-            'no_warnings': True,
+            'quiet': False,
+            'no_warnings': False,
             'extract_flat': False,
             'postprocessors': [{
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
                 'preferredquality': '192',
             }],
+            # エラーを無視しない
+            'ignoreerrors': False,
         }
         
         # ダウンロード実行
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([request.url])
-            # ファイル名に使えない文字を削除
-            safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_')).strip()
-            if not safe_title:
-                safe_title = "download"
+            try:
+                info = ydl.extract_info(request.url, download=True)
+                if info is None:
+                    raise HTTPException(status_code=400, detail="楽曲情報を取得できませんでした")
+                
+                title = info.get('title', 'unknown')
+                print(f"✅ 取得成功: {title}")
+                
+                # ファイル名に使えない文字を削除
+                safe_title = "".join(c for c in title if c.isalnum() or c in (' ', '-', '_', '.')).strip()
+                if not safe_title:
+                    safe_title = "download"
+                    
+            except Exception as e:
+                print(f"❌ yt-dlpエラー: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"ダウンロードエラー: {str(e)}")
         
         # ダウンロードされたファイルを検索
         downloaded_file = None
@@ -131,7 +107,9 @@ async def download_track(request: DownloadRequest):
             break
         
         if not downloaded_file or not downloaded_file.exists():
-            raise HTTPException(status_code=500, detail="ファイルのダウンロードに失敗しました")
+            raise HTTPException(status_code=500, detail="ファイルのダウンロードに失敗しました。楽曲が存在しないか、ダウンロードが許可されていない可能性があります。")
+        
+        print(f"💾 ファイル保存完了: {downloaded_file.name}")
         
         return {
             "success": True,
@@ -140,13 +118,11 @@ async def download_track(request: DownloadRequest):
             "download_url": f"/file/{downloaded_file.name}"
         }
         
-    except HTTPException as he:
-        # HTTPExceptionはそのまま再送出
-        raise he
+    except HTTPException:
+        raise
     except Exception as e:
-        error_msg = str(e)
-        print(f"❌ エラー: {error_msg}")
-        raise HTTPException(status_code=400, detail=error_msg)
+        print(f"❌ 予期しないエラー: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"サーバーエラー: {str(e)}")
 
 @app.get("/file/{filename}")
 async def get_file(filename: str, download_name: str = None):
@@ -156,36 +132,36 @@ async def get_file(filename: str, download_name: str = None):
         raise HTTPException(status_code=404, detail="ファイルが見つかりません")
     
     # デバッグ用ログ
-    #print(f"📥 ファイルリクエスト: {filename}")
-    #print(f"📝 download_name パラメータ: {download_name}")
+    print(f"📥 ファイルリクエスト: {filename}")
+    print(f"📝 download_name パラメータ: {download_name}")
     
     # ファイルを返して、バックグラウンドで削除
     async def delete_file(path: Path):
         try:
             if path.exists():
                 path.unlink()
-                print(f"削除完了: {path}")
+                print(f"🗑️ 削除完了: {path}")
         except Exception as e:
-            print(f"削除エラー: {e}")
+            print(f"❌ 削除エラー: {e}")
     
     background_tasks = BackgroundTasks()
     background_tasks.add_task(delete_file, file_path)
     
-    # download_nameが指定されていればそれを使用、なければファイル名
+    # download_nameが指定されていればそれを使用
     if download_name:
         final_filename = unquote(download_name)
-        #print(f"✅ 使用するファイル名: {final_filename}")
+        print(f"✅ 使用するファイル名: {final_filename}")
     else:
         final_filename = filename
-        #print(f"⚠️ download_nameがないため、UUIDを使用: {final_filename}")
+        print(f"⚠️ download_nameがないため、UUIDを使用: {final_filename}")
     
-    # Content-Dispositionヘッダーを明示的に設定
+    # Content-Dispositionヘッダーを設定
     encoded_filename = quote(final_filename)
     headers = {
         'Content-Disposition': f'attachment; filename="{encoded_filename}"; filename*=UTF-8\'\'{encoded_filename}'
     }
     
-    #print(f"📤 送信ヘッダー: {headers}")
+    print(f"📤 送信ヘッダー: {headers}")
     
     return FileResponse(
         path=file_path,
