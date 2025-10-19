@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SoundCloud Downloader</title>
+    <title>Soundcloud Downloader | SoundCloud to MP3 Converter</title>
     <style>
         * {
             margin: 0;
@@ -167,10 +167,10 @@
 <body>
     <div class="container">
         <h1>SoundCloud Downloader</h1>
-        <p class="subtitle">SoundCloudの楽曲ダウンローダー</p>
+        <p class="subtitle">SoundCloud to MP3 Converter</p>
         
         <div class="warning">
-            <strong>注意:</strong> ダウンロードが許可されている楽曲のみを対象としてください。著作権を尊重しましょう。
+            <strong>Note:</strong> Please download only songs for which you have permission. Respect copyright.  Downloading may take some time.
         </div>
 
         <div class="input-group">
@@ -184,7 +184,7 @@
         </div>
 
         <button class="btn" id="downloadBtn" onclick="downloadTrack()">
-            ダウンロード
+            Download
         </button>
 
         <div class="status" id="status"></div>
@@ -201,17 +201,17 @@
             const url = urlInput.value.trim();
 
             if (!url) {
-                showStatus('URLを入力してください', 'error');
+                showStatus('enter a URL.', 'error');
                 return;
             }
 
             if (!url.includes('soundcloud.com')) {
-                showStatus('有効なSoundCloud URLを入力してください', 'error');
+                showStatus('Please enter a valid SoundCloud URL.', 'error');
                 return;
             }
 
             downloadBtn.disabled = true;
-            showStatus('<div class="spinner"></div>処理中...', 'loading');
+            showStatus('<div class="spinner"></div>Processing...', 'loading');
 
             try {
                 const response = await fetch(`${API_URL}/download`, {
@@ -233,7 +233,7 @@
                     const downloadUrl = `${API_URL}${data.download_url}?download_name=${encodeURIComponent(filename)}`;
                     
                     showStatus(
-                        `✅ ダウンロード準備完了！<br><a href="${downloadUrl}" class="download-link">📥 ${data.title}</a>`,
+                        `Download Ready！<br><a href="${downloadUrl}" class="download-link"> ${data.title}</a>`,
                         'success'
                     );
                 } else {
@@ -252,10 +252,10 @@
                     }
                     
                     console.log('Error message:', errorMessage);
-                    showStatus(`❌ ${errorMessage}`, 'error');
+                    showStatus(`${errorMessage}`, 'error');
                 }
             } catch (error) {
-                showStatus(`❌ 接続エラー: バックエンドに接続できません`, 'error');
+                showStatus(`connecting error: can't connect backedAPI`, 'error');
                 console.error(error);
             } finally {
                 downloadBtn.disabled = false;
@@ -279,4 +279,5 @@
 </body>
 
 </html>
+
 
