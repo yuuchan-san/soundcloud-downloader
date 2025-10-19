@@ -86,7 +86,7 @@ async def download_track(request: DownloadRequest):
             try:
                 info = ydl.extract_info(request.url, download=True)
                 if info is None:
-                    raise HTTPException(status_code=400, detail="楽曲情報を取得できませんでした")
+                    raise HTTPException(status_code=400, detail="Song information could not be retrieved.")
                 
                 title = info.get('title', 'unknown')
                 print(f"✅ 取得成功: {title}")
@@ -98,7 +98,7 @@ async def download_track(request: DownloadRequest):
                     
             except Exception as e:
                 print(f"❌ yt-dlpエラー: {str(e)}")
-                raise HTTPException(status_code=400, detail=f"ダウンロードエラー: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Download error: {str(e)}")
         
         # ダウンロードされたファイルを検索
         downloaded_file = None
@@ -107,7 +107,7 @@ async def download_track(request: DownloadRequest):
             break
         
         if not downloaded_file or not downloaded_file.exists():
-            raise HTTPException(status_code=500, detail="ファイルのダウンロードに失敗しました。楽曲が存在しないか、ダウンロードが許可されていない可能性があります。")
+            raise HTTPException(status_code=500, detail="The file download failed. The song may not exist or you may not be authorized to download it.")
         
         print(f"💾 ファイル保存完了: {downloaded_file.name}")
         
@@ -122,14 +122,14 @@ async def download_track(request: DownloadRequest):
         raise
     except Exception as e:
         print(f"❌ 予期しないエラー: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"サーバーエラー: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 @app.get("/file/{filename}")
 async def get_file(filename: str, download_name: str = None):
     file_path = DOWNLOAD_DIR / filename
     
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="ファイルが見つかりません")
+        raise HTTPException(status_code=404, detail="File notfound.")
     
     # デバッグ用ログ
     print(f"📥 ファイルリクエスト: {filename}")
@@ -179,6 +179,7 @@ async def cleanup_old_files():
             if file.is_file():
                 file.unlink()
                 deleted_count += 1
-        return {"message": f"クリーンアップ完了: {deleted_count}ファイル削除"}
+        return {"message": f"Cleanup complete: {deleted_count}file removed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
