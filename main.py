@@ -49,7 +49,8 @@ def cleanup_old_files_sync(max_age_seconds: int = 600):
 class DownloadRequest(BaseModel):
     url: str
 
-@app.get("/")
+@app.get("/", include_in_schema=False)
+@app.head("/", include_in_schema=False)
 def read_root():
     return {"message": "SoundCloud Downloader API", "status": "running"}
 
@@ -182,4 +183,5 @@ async def cleanup_old_files():
         return {"message": f"Cleanup complete: {deleted_count}file removed"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
